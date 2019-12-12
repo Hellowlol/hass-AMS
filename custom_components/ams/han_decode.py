@@ -37,6 +37,14 @@ _LOGGER = logging.getLogger(__name__)
 # pylint: disable=too-many-locals, too-many-statements
 
 
+def p_type(default='', it=None, type_=str, r_type=None):
+    res = default.join(type_(i) for i in it)
+    if r_type:
+        return r_type(res)
+    return res
+
+
+
 def parse_data(stored, data):
     """Parse the incoming data to dict."""
     sensor_data = {}
@@ -60,79 +68,15 @@ def parse_data(stored, data):
     han_data["day_of_week"] = WEEKDAY_MAPPING.get(pkt[21])
     list_type = pkt[30]
     han_data["list_type"] = list_type
-    han_data["obis_list_version"] = (chr(pkt[33]) +
-                                     chr(pkt[34]) +
-                                     chr(pkt[35]) +
-                                     chr(pkt[36]) +
-                                     chr(pkt[37]) +
-                                     chr(pkt[38]) +
-                                     chr(pkt[39]) +
-                                     chr(pkt[40]) +
-                                     chr(pkt[41]) +
-                                     chr(pkt[42]) +
-                                     chr(pkt[43]) +
-                                     chr(pkt[44]) +
-                                     chr(pkt[45]) +
-                                     chr(pkt[46]))
-    han_data["obis_m_s"] = (str(pkt[49]) +
-                            '.' + str(pkt[50]) +
-                            '.' + str(pkt[51]) +
-                            '.' + str(pkt[52]) +
-                            '.' + str(pkt[53]) +
-                            '.' + str(pkt[54]))
-    han_data["meter_serial"] = (chr(pkt[57]) +
-                                chr(pkt[58]) +
-                                chr(pkt[59]) +
-                                chr(pkt[60]) +
-                                chr(pkt[61]) +
-                                chr(pkt[62]) +
-                                chr(pkt[63]) +
-                                chr(pkt[64]) +
-                                chr(pkt[65]) +
-                                chr(pkt[66]) +
-                                chr(pkt[67]) +
-                                chr(pkt[68]) +
-                                chr(pkt[69]) +
-                                chr(pkt[70]) +
-                                chr(pkt[71]) +
-                                chr(pkt[72]))
-    han_data["obis_m_t"] = (str(pkt[75]) +
-                            '.' + str(pkt[76]) +
-                            '.' + str(pkt[77]) +
-                            '.' + str(pkt[78]) +
-                            '.' + str(pkt[79]) +
-                            '.' + str(pkt[80]))
-    han_data["meter_type"] = (chr(pkt[83]) +
-                              chr(pkt[84]) +
-                              chr(pkt[85]) +
-                              chr(pkt[86]) +
-                              chr(pkt[87]) +
-                              chr(pkt[88]) +
-                              chr(pkt[89]) +
-                              chr(pkt[90]) +
-                              chr(pkt[91]) +
-                              chr(pkt[92]) +
-                              chr(pkt[93]) +
-                              chr(pkt[94]) +
-                              chr(pkt[95]) +
-                              chr(pkt[96]) +
-                              chr(pkt[97]) +
-                              chr(pkt[98]) +
-                              chr(pkt[99]) +
-                              chr(pkt[100]))
-    han_data["meter_type_str"] = METER_TYPE.get(int(chr(pkt[83]) +
-                                                    chr(pkt[84]) +
-                                                    chr(pkt[85]) +
-                                                    chr(pkt[86]) +
-                                                    chr(pkt[87]) +
-                                                    chr(pkt[88]) +
-                                                    chr(pkt[89])))
-    han_data["obis_a_p_p"] = (str(pkt[103]) +
-                              '.' + str(pkt[104]) +
-                              '.' + str(pkt[105]) +
-                              '.' + str(pkt[106]) +
-                              '.' + str(pkt[107]) +
-                              '.' + str(pkt[108]))
+    han_data["obis_list_version"] = p_type(type_=chr, it=pkt[33:46])
+
+    han_data["obis_m_s"] = p_type('.', it=pkt[49:54])
+    han_data["meter_serial"] = p_type(type_=chr, it=pkt[57:72])
+    han_data["obis_m_t"] = p_type('.', pkt[75:80])
+    han_data["meter_type"] = p_type(type_=chr, it=pkt[83:100])
+
+    han_data["meter_type_str"] = METER_TYPE.get(p_type(type_=chr, it=pkt[83:89], r_type=int))
+    han_data["obis_a_p_p"] = p_type('.', pkt[103:108])
     han_data["active_power_p"] = (pkt[110] << 24 |
                                   pkt[111] << 16 |
                                   pkt[112] << 8 |
@@ -150,12 +94,7 @@ def parse_data(stored, data):
             }
         }
 
-    han_data["obis_a_p_n"] = (str(pkt[116]) +
-                              '.' + str(pkt[117]) +
-                              '.' + str(pkt[118]) +
-                              '.' + str(pkt[119]) +
-                              '.' + str(pkt[120]) +
-                              '.' + str(pkt[121]))
+    han_data["obis_a_p_n"] = p_type('.', pkt[116:121])
     han_data["active_power_n"] = (pkt[123] << 24 |
                                   pkt[124] << 16 |
                                   pkt[125] << 8 |
@@ -172,12 +111,7 @@ def parse_data(stored, data):
             'icon': 'mdi:gauge'
             }
         }
-    han_data["obis_r_p_p"] = (str(pkt[129]) +
-                              '.' + str(pkt[130]) +
-                              '.' + str(pkt[131]) +
-                              '.' + str(pkt[132]) +
-                              '.' + str(pkt[133]) +
-                              '.' + str(pkt[134]))
+    han_data["obis_r_p_p"] = p_type('.', pkt[129:134])
     han_data["reactive_power_p"] = (pkt[136] << 24 |
                                     pkt[137] << 16 |
                                     pkt[138] << 8 |
@@ -194,12 +128,8 @@ def parse_data(stored, data):
             'icon': 'mdi:gauge'
             }
         }
-    han_data["obis_r_p_n"] = (str(pkt[142]) +
-                              '.' + str(pkt[143]) +
-                              '.' + str(pkt[144]) +
-                              '.' + str(pkt[145]) +
-                              '.' + str(pkt[146]) +
-                              '.' + str(pkt[147]))
+
+    han_data["obis_r_p_n"] = p_type('.', pkt[142:147])
     han_data["reactive_power_n"] = (pkt[149] << 24 |
                                     pkt[150] << 16 |
                                     pkt[151] << 8 |
@@ -216,12 +146,8 @@ def parse_data(stored, data):
             'icon': 'mdi:gauge'
             }
         }
-    han_data["obis_c_l1"] = (str(pkt[155]) +
-                             '.' + str(pkt[156]) +
-                             '.' + str(pkt[157]) +
-                             '.' + str(pkt[158]) +
-                             '.' + str(pkt[159]) +
-                             '.' + str(pkt[160]))
+
+    han_data["obis_c_l1"] = p_type('.', pkt[155:160])
     han_data["current_l1"] = (pkt[162] << 24 |
                               pkt[163] << 16 |
                               pkt[164] << 8 |
@@ -241,12 +167,8 @@ def parse_data(stored, data):
 
     if (list_type is LIST_TYPE_SHORT_3PH or
             list_type is LIST_TYPE_LONG_3PH):
-        han_data["obis_c_l2"] = (str(pkt[168]) +
-                                 '.' + str(pkt[169]) +
-                                 '.' + str(pkt[170]) +
-                                 '.' + str(pkt[171]) +
-                                 '.' + str(pkt[172]) +
-                                 '.' + str(pkt[173]))
+
+        han_data["obis_c_l2"] = p_type('.', pkt[168:173])
         han_data["current_l2"] = (pkt[175] << 24 |
                                   pkt[176] << 16 |
                                   pkt[177] << 8 |
@@ -263,12 +185,7 @@ def parse_data(stored, data):
                 'icon': 'mdi:current-ac'
                 }
             }
-        han_data["obis_c_l3"] = (str(pkt[181]) +
-                                 '.' + str(pkt[182]) +
-                                 '.' + str(pkt[183]) +
-                                 '.' + str(pkt[184]) +
-                                 '.' + str(pkt[185]) +
-                                 '.' + str(pkt[186]))
+        han_data["obis_c_l3"] = p_type('.', pkt[181:186])
         han_data["current_l3"] = (pkt[188] << 24 |
                                   pkt[189] << 16 |
                                   pkt[190] << 8 |
@@ -285,12 +202,7 @@ def parse_data(stored, data):
                 'icon': 'mdi:current-ac'
                 }
             }
-        han_data["obis_v_l1"] = (str(pkt[194]) +
-                                 '.' + str(pkt[195]) +
-                                 '.' + str(pkt[196]) +
-                                 '.' + str(pkt[197]) +
-                                 '.' + str(pkt[198]) +
-                                 '.' + str(pkt[199]))
+        han_data["obis_v_l1"] = p_type('.', pkt[194:199])
         han_data["voltage_l1"] = (pkt[201] << 8 |
                                   pkt[202])
         sensor_data["ams_voltage_l1"] = {
@@ -305,12 +217,7 @@ def parse_data(stored, data):
                 'icon': 'mdi:flash'
                 }
             }
-        han_data["obis_v_l2"] = (str(pkt[205]) +
-                                 '.' + str(pkt[206]) +
-                                 '.' + str(pkt[207]) +
-                                 '.' + str(pkt[208]) +
-                                 '.' + str(pkt[209]) +
-                                 '.' + str(pkt[210]))
+        han_data["obis_v_l2"] = p_type('.', pkt[205:210])
         han_data["voltage_l2"] = (pkt[212] << 8 |
                                   pkt[213])
         sensor_data["ams_voltage_l2"] = {
@@ -325,12 +232,7 @@ def parse_data(stored, data):
                 'icon': 'mdi:flash'
                 }
             }
-        han_data["obis_v_l3"] = (str(pkt[216]) +
-                                 '.' + str(pkt[217]) +
-                                 '.' + str(pkt[218]) +
-                                 '.' + str(pkt[219]) +
-                                 '.' + str(pkt[220]) +
-                                 '.' + str(pkt[221]))
+        han_data["obis_v_l3"] = p_type('.', pkt[216:221])
         han_data["voltage_l3"] = (pkt[223] << 8 |
                                   pkt[224])
         sensor_data["ams_voltage_l3"] = {
@@ -346,15 +248,9 @@ def parse_data(stored, data):
                 }
             }
 
-    if (list_type is LIST_TYPE_SHORT_1PH or
-            list_type is LIST_TYPE_LONG_1PH):
-
-        han_data["obis_v_l1"] = (str(pkt[168]) +
-                                 '.' + str(pkt[169]) +
-                                 '.' + str(pkt[170]) +
-                                 '.' + str(pkt[171]) +
-                                 '.' + str(pkt[172]) +
-                                 '.' + str(pkt[173]))
+    if (list_type == LIST_TYPE_SHORT_1PH or
+            list_type == LIST_TYPE_LONG_1PH):
+        han_data["obis_v_l1"] = p_type('.', pkt[168:173])
         han_data["voltage_l1"] = (pkt[175] << 8 |
                                   pkt[176])
         sensor_data["ams_voltage_l1"] = {
@@ -371,12 +267,7 @@ def parse_data(stored, data):
             }
 
     if list_type == LIST_TYPE_LONG_1PH:
-        han_data["obis_meter_date_time"] = (str(pkt[179]) +
-                                            '.' + str(pkt[180]) +
-                                            '.' + str(pkt[181]) +
-                                            '.' + str(pkt[182]) +
-                                            '.' + str(pkt[183]) +
-                                            '.' + str(pkt[184]))
+        han_data["obis_meter_date_time"] = p_type('.', pkt[179:184])
         meter_date_time_year = pkt[187] << 8 | pkt[188]
         meter_date_time_month = pkt[189]
         meter_date_time_date = pkt[190]
@@ -384,6 +275,7 @@ def parse_data(stored, data):
         meter_date_time_hour = str(pkt[192]).zfill(2)
         meter_date_time_minute = str(pkt[193]).zfill(2)
         meter_date_time_seconds = str(pkt[194]).zfill(2)
+        han_data["meter_date_time"] = f'{meter_date_time_year}-{meter_date_time_month}-{meter_date_time_date} {meter_date_time_hour}:{meter_date_time_minute}:{meter_date_time_seconds}'
         han_data["meter_date_time"] = (str(meter_date_time_year) +
                                        '-' + str(meter_date_time_month) +
                                        '-' + str(meter_date_time_date) +
