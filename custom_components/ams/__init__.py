@@ -28,6 +28,7 @@ DEFAULT_SERIAL_PORT = "/dev/ttyUSB0"
 DEFAULT_BAUDRATE = 2400
 DEFAULT_PARITY = serial.PARITY_NONE
 DEFAULT_TIMEOUT = 0
+
 FRAME_FLAG = b'\x7e'
 DATA_FLAG = b"\xe6\xe7\x00\x0f"
 
@@ -99,6 +100,8 @@ class AmsHub():
             stopbits=serial.STOPBITS_ONE,
             bytesize=serial.EIGHTBITS,
             timeout=DEFAULT_TIMEOUT)
+        # To set the different methods just swap the target=self.run
+        # with the old one target=self.connect
         self._runner = threading.Thread(target=self.run, daemon=True)
         self._runner.start()
         _LOGGER.info('Finish init of AMS')
