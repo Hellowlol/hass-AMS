@@ -8,21 +8,21 @@ from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.core import callback
 import custom_components.ams as amshub
 
-DOMAIN = 'ams'
-AMS_SENSORS = 'ams_sensors'
-SIGNAL_UPDATE_AMS = 'update'
+
+from .const import (
+    DOMAIN,
+    AMS_SENSORS,
+    SIGNAL_UPDATE_AMS,
+    CONF_PORT,
+    CONF_PARITY,
+    DEFAULT_PARITY,
+    DEFAULT_PORT,
+
+)
 
 _LOGGER = logging.getLogger(__name__)
 
-CONF_PORT = "port"
-CONF_PARITY = "parity"
-
-BAUDRATE = 2400
-DEFAULT_PARITY = 'N'
-DEFAULT_PORT = '/dev/ttyUSB0'
-TIMEOUT = 0
-FRAME_FLAG = b'\x7e'
-
+# Is this even used??
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Required(CONF_PORT, default=DEFAULT_PORT): cv.string,
     vol.Optional(CONF_PARITY, default=DEFAULT_PARITY):

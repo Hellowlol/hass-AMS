@@ -8,29 +8,32 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
+
+from .const import (
+    DOMAIN,
+    AMS_SENSORS,
+    AMS_DEVICES,
+    SIGNAL_UPDATE_AMS,
+    SIGNAL_NEW_AMS_SENSOR,
+    CONF_SERIAL_PORT,
+    CONF_BAUDRATE,
+    CONF_PARITY,
+    CONF_SLEEP,
+    CONF_TIMEOUT,
+    DEFAULT_NAME,
+    DEFAULT_SERIAL_PORT,
+    DEFAULT_BAUDRATE,
+    DEFAULT_PARITY,
+    DEFAULT_TIMEOUT,
+    FRAME_FLAG,
+    DATA_FLAG
+)
+
 from . import han_decode
 
 
-DOMAIN = 'ams'
-AMS_SENSORS = 'ams_sensors'
-AMS_DEVICES = []
-SIGNAL_UPDATE_AMS = 'update'
-SIGNAL_NEW_AMS_SENSOR = 'ams_new_sensor'
-
 _LOGGER = logging.getLogger(__name__)
 
-CONF_SERIAL_PORT = "serial_port"
-CONF_BAUDRATE = "baudrate"
-CONF_PARITY = "parity"
-
-DEFAULT_NAME = "AMS Sensor"
-DEFAULT_SERIAL_PORT = "/dev/ttyUSB0"
-DEFAULT_BAUDRATE = 2400
-DEFAULT_PARITY = serial.PARITY_NONE
-DEFAULT_TIMEOUT = 0
-
-FRAME_FLAG = b'\x7e'
-DATA_FLAG = b"\xe6\xe7\x00\x0f"
 
 CONFIG_SCHEMA = vol.Schema(
     {
@@ -39,6 +42,8 @@ CONFIG_SCHEMA = vol.Schema(
                 vol.Required(CONF_SERIAL_PORT,
                              default=DEFAULT_SERIAL_PORT): cv.string,
                 vol.Optional(CONF_PARITY, default=DEFAULT_PARITY): cv.string,
+                vol.Optional(CONF_BAUDRATE, default=DEFAULT_BAUDRATE): cv.positive_int,
+                vol.Optional(CONF_TIMEOUT, default=DEFAULT_TIMEOUT): cv.small_float,
             }
         )
     },
@@ -87,19 +92,18 @@ class AmsHub():
     def __init__(self, hass, entry):
         """Initalize the AMS hub."""
         self._hass = hass
-        port = entry.data[CONF_SERIAL_PORT]
-        parity = entry.data[CONF_PARITY]
         self.sensor_data = {}
         self._hass.data[AMS_SENSORS] = self.data
         self._running = True
         self._buffer = bytearray()
+        self._sleep = entry.data[CONF_SLEEP]
         self._ser = serial.Serial(
-            port=port,
-            baudrate=DEFAULT_BAUDRATE,
-            parity=parity,
+            port=entry.data[CONF_SERIAL_PORT],
+            baudrate=entry.data[CONF_BAUDRATE],
+            parity=entry.data[CONF_PARITY],
             stopbits=serial.STOPBITS_ONE,
             bytesize=serial.EIGHTBITS,
-            timeout=DEFAULT_TIMEOUT)
+            timeout=entry.data[CONF_TIMEOUT])
         # To set the different methods just swap the target=self.run
         # with the old one target=self.connect
         self._runner = threading.Thread(target=self.run, daemon=True)
@@ -127,6 +131,7 @@ class AmsHub():
 
     def connect(self):
         """Read the data from the port."""
+        _LOGGER.debug('Using connect')
         while self._running:
             try:
                 data = self.read_bytes()
@@ -146,18 +151,16 @@ class AmsHub():
 
     def _check_for_new_sensors_and_update(self, sensor_data):
         """Compare sensor list and update."""
-        sensor_list = []
         new_devices = []
-        for sensor_name in sensor_data.keys():
-            sensor_list.append(sensor_name)
+        sensor_list = list(sensor_data.keys())
         _LOGGER.debug('sensor_list= %s', sensor_list)
         _LOGGER.debug('AMS_DEVICES= %s', AMS_DEVICES)
         if len(AMS_DEVICES) < len(sensor_list):
             new_devices = list(set(sensor_list) ^ set(AMS_DEVICES))
-            for device in new_devices:
-                AMS_DEVICES.append(device)
+            AMS_DEVICES.extend(new_devices)
+
             async_dispatcher_send(self._hass, SIGNAL_NEW_AMS_SENSOR)
-            _LOGGER.debug('new_devices= %s', new_devices)
+            _LOGGER.warning('new_devices= %s', new_devices)
         else:
             _LOGGER.debug('sensors are the same, updating states')
             _LOGGER.debug('hass.data[AMS_SENSORS] = %s',
@@ -171,54 +174,63 @@ class AmsHub():
         if data:
             self._buffer.extend(data)
         else:
-            time.sleep(0.2)
+            time.sleep(self._sleep)
 
     def run(self):
         _LOGGER.debug("Doing run!")
 
         while self._running:
-            # If we have buff, check it
-            if len(self._buffer) > 180:
-                # We start by looking in the buffer for first and second frame flag
-                # check that the frame is big enough for the data that we want and
-                # thats is a data flag.
-                start = self._buffer.find(FRAME_FLAG)
-                if start > -1:
-                    # slice the self._buffer so we search for the second FRAME_FLAG
-                    end = self._buffer[start + 1:].find(FRAME_FLAG)
-                    if end > -1:
-                        end = start + 1 + end + 1
-                        # So we have found what we think is a frame
-                        frame = self._buffer[start:end]
-                        if len(frame) < 179:
-                            _LOGGER.debug("The frame is too small! %s", len(frame))
-                            self._buffer = self._buffer[end:]
-                            self._read_more()
-                            continue
-
-                        # Check if its a data frame.
-                        if self._buffer[start + 8:start + 12] == DATA_FLAG:
-                            # the verifier expects a list..
-                            l_frame = list(frame)
-                            # We can make s simple version that just does the crc etc.
-                            if han_decode.test_valid_data(l_frame):
-                                self.sensor_data = han_decode.parse_data(self.sensor_data, frame)
-                                self._hass.data[AMS_SENSORS] = self.sensor_data
-                                self._check_for_new_sensors_and_update(self.sensor_data)
+            try:
+                # If we have buff, check it
+                # 180 seems to be the minimum lenght for a valid frame
+                # so lets check that first.
+                if len(self._buffer) > 180:
+                    # We start by looking in the buffer for first and second frame flag
+                    # check that the frame is big enough for the data that we want and
+                    # thats is a data flag.
+                    start = self._buffer.find(FRAME_FLAG)
+                    if start > -1:
+                        # slice the self._buffer so we search for the second FRAME_FLAG
+                        end = self._buffer[start + 1:].find(FRAME_FLAG)
+                        if end > -1:
+                            end = start + 1 + end + 1
+                            # So we have found what we think is a frame
+                            frame = self._buffer[start:end]
+                            if len(frame) < 179:
+                                _LOGGER.debug("The frame is too small! %s", len(frame))
                                 self._buffer = self._buffer[end:]
-                                _LOGGER.debug("reset the buffer to %s", self._buffer[end:])
+                                self._read_more()
                                 continue
-                        else:
-                            # remove the frame from the self._buffer as its junk
-                            _LOGGER.debug("Deleted the old frame from the buffer it dont have data %s", self._buffer[end:])
-                            self._buffer = self._buffer[end:]
 
+                            # Check if its a data frame.
+                            if self._buffer[start + 8:start + 12] == DATA_FLAG:
+                                # the verifier expects a list..
+                                l_frame = list(frame)
+                                # We can make s simple version that just does the crc etc.
+                                if han_decode.test_valid_data(l_frame):
+                                    self.sensor_data = han_decode.parse_data(self.sensor_data, frame)
+                                    self._hass.data[AMS_SENSORS] = self.sensor_data
+                                    self._check_for_new_sensors_and_update(self.sensor_data)
+                                    self._buffer = self._buffer[end:]
+                                    _LOGGER.debug("reset the buffer to %s", self._buffer[end:])
+                                    continue
+                                else:
+                                    _LOGGER.debug("The data in the frame wasn't valid, removing it from the buffer.")
+                                    self._buffer = self._buffer[end:]
+                            else:
+                                # remove the frame from the self._buffer as its junk
+                                _LOGGER.debug("Deleted the old frame from the buffer it dont have data %s", self._buffer[end:])
+                                self._buffer = self._buffer[end:]
+
+                        else:
+                            _LOGGER.debug("Didn't find the second DATA_FLAG")
+                            self._read_more()
                     else:
-                        _LOGGER.debug("Didn't find the second DATA_FLAG")
+                        _LOGGER.debug("Didn't find the first DATA_FLAG")
                         self._read_more()
                 else:
-                    _LOGGER.debug("Didn't find the first DATA_FLAG")
-                    self._read_more()
-            else:
-                _LOGGER.debug("Buffer is to small %s", len(self._buffer))
+                    _LOGGER.debug("Buffer is to small %s", len(self._buffer))
                 self._read_more()
+
+            except serial.serialutil.SerialException:
+                pass

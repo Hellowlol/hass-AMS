@@ -8,23 +8,18 @@ import logging
 from datetime import datetime
 from crccheck.crc import CrcX25
 
-DATA_FLAG = [230, 231, 0, 15]
-FRAME_FLAG = b"\x7e"
-LIST_TYPE_SHORT_1PH = 17
-LIST_TYPE_LONG_1PH = 27
-LIST_TYPE_SHORT_3PH = 25
-LIST_TYPE_LONG_3PH = 35
 
-WEEKDAY_MAPPING = {
-    1: "Monday",
-    2: "Tuesday",
-    3: "Wednesday",
-    4: "Thursday",
-    5: "Friday",
-    6: "Saturday",
-    7: "Sunday"
-}
+from .const import (
+    DATA_FLAG_LIST,
+    FRAME_FLAG,
+    LIST_TYPE_SHORT_1PH,
+    LIST_TYPE_LONG_1PH,
+    LIST_TYPE_SHORT_3PH,
+    LIST_TYPE_LONG_3PH,
+    WEEKDAY_MAPPING
+)
 
+# Lets just leave this for now, its just used here.
 METER_TYPE = {
     6861111: "Omnipower 1 Phase Direct meter",
     6841121: "Omnipower 3 Phase 3-Wire Direct meter",
@@ -457,7 +452,7 @@ def test_valid_data(data):
         _LOGGER.warning("Invalid packet size %s", len(data))
         return False
 
-    if not data[0] and data[-1] == FRAME_FLAG:
+    if not data[0] and data[-1] == list(FRAME_FLAG):
         _LOGGER.warning("%s Recieved %s bytes of %s data",
                         datetime.now().isoformat(),
                         len(data), False)
@@ -477,9 +472,9 @@ def test_valid_data(data):
         _LOGGER.warning("Invalid frame CRC check")
         return False
 
-    if data[8:12] != DATA_FLAG:
+    if data[8:12] != DATA_FLAG_LIST:
         _LOGGER.warning("Data does not start with %s: %s",
-                        DATA_FLAG, data[8:12])
+                        DATA_FLAG_LIST, data[8:12])
         return False
 
     packet_size = len(data)
